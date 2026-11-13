@@ -6,6 +6,7 @@ import {
   Copy, 
   Check, 
   ShieldCheck,
+  ShieldAlert,
   CheckCircle2,
   ThumbsUp
 } from 'lucide-react';
@@ -18,6 +19,8 @@ export default function MessageBubble({ message, onKBSaved }) {
   const isUser = message.role === 'user';
   const isKBHit = message.answer_source === 'kb_hit';
   const isLLMFallback = message.answer_source === 'llm_fallback';
+  const isGuardrailBlocked = message.answer_source === 'guardrail_blocked' || message.query_intent === 'out_of_scope';
+  const isSecurityBlocked = message.answer_source === 'security_blocked' || message.query_intent === 'prompt_injection';
   const isStreaming = Boolean(message.is_streaming);
   const [showAttachedCode, setShowAttachedCode] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -196,9 +199,15 @@ export default function MessageBubble({ message, onKBSaved }) {
 
   const shouldShowSaveToKB = !isUser && 
     isLLMFallback && 
+    !isGuardrailBlocked &&
+    !isSecurityBlocked &&
     !isStreaming && 
     message.message && 
     message.query_intent !== 'greeting' &&
+    message.query_intent !== 'out_of_scope' &&
+    message.query_intent !== 'prompt_injection' &&
+    message.answer_source !== 'guardrail_blocked' &&
+    message.answer_source !== 'security_blocked' &&
     (message.message.includes('```') || message.message.length > 180);
 
   // ── Gemini-Style User Message (Right-aligned sleek rounded bubble) ──
@@ -256,7 +265,17 @@ export default function MessageBubble({ message, onKBSaved }) {
               </span>
             )}
 
-            {isLLMFallback && (
+            {isSecurityBlocked ? (
+              <span className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-500 border border-rose-500/30">
+                <ShieldAlert className="w-3 h-3 text-rose-500" />
+                <span>Security Alert</span>
+              </span>
+            ) : isGuardrailBlocked ? (
+              <span className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                <ShieldAlert className="w-3 h-3 text-amber-500" />
+                <span>Domain Guardrail</span>
+              </span>
+            ) : isLLMFallback && (
               <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-bg-input text-text-muted border border-border-subtle">
                 <span>General AI</span>
               </span>
