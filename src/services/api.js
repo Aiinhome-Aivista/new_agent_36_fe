@@ -35,6 +35,8 @@ export const api = {
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
 
+      let hasFinished = false;
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -59,7 +61,8 @@ export const api = {
                 onMetadata(dataObj);
               } else if (currentEvent === 'token' && onToken) {
                 onToken(dataObj.token);
-              } else if (currentEvent === 'done' && onDone) {
+              } else if (currentEvent === 'done' && onDone && !hasFinished) {
+                hasFinished = true;
                 onDone(dataObj);
               }
             } catch (err) {
@@ -69,7 +72,10 @@ export const api = {
         }
       }
 
-      if (onDone) onDone({ status: 'completed' });
+      if (onDone && !hasFinished) {
+        hasFinished = true;
+        onDone({ status: 'completed' });
+      }
     } catch (err) {
       console.error('Stream failed:', err);
       if (onError) onError(err);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar/Sidebar';
 import LandingPage from './pages/LandingPage';
 import DeveloperAssistant from './pages/DeveloperAssistant';
@@ -10,16 +10,20 @@ function generateUUID() {
   return 'session_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
 }
 
-// Internal App Layout with Sidebar for Chat, Dashboard & Knowledge Base
-function AppLayout({ onNewChat, sessionId, theme, toggleTheme }) {
+// Internal App Layout: Parent Sidebar automatically collapses to icon-only when child sidebar is open
+function AppLayout({ theme, toggleTheme, isChildSidebarOpen }) {
+  const location = useLocation();
+  const isChatRoute = location.pathname === '/chat';
+  // When child sidebar is open in chat, parent sidebar collapses into icon-only mode
+  const isParentCollapsed = isChatRoute && isChildSidebarOpen;
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg-base text-text-primary transition-colors duration-250">
-      {/* Sidebar - only rendered inside app workspace */}
+      {/* Parent Sidebar - icon-only when child sidebar is open */}
       <Sidebar 
-        onNewChat={onNewChat} 
-        activeSessionId={sessionId} 
         theme={theme}
         toggleTheme={toggleTheme}
+        isCollapsed={isParentCollapsed}
       />
 
       {/* Content Area */}
@@ -39,6 +43,15 @@ export default function App() {
   const [sessionId, setSessionId] = useState(() => {
     return localStorage.getItem('devknow_session_id') || generateUUID();
   });
+
+  // Track child sidebar state (open by default)
+  const [isChildSidebarOpen, setIsChildSidebarOpen] = useState(true);
+
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleConversationUpdated = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
 
   // Apply dark mode class to html element
   useEffect(() => {
@@ -73,14 +86,13 @@ export default function App() {
           element={<LandingPage theme={theme} toggleTheme={toggleTheme} />} 
         />
 
-        {/* Application Workspace Routes (with Sidebar) */}
+        {/* Application Workspace Routes (with Parent Sidebar) */}
         <Route 
           element={
             <AppLayout 
-              onNewChat={handleNewChat} 
-              sessionId={sessionId} 
               theme={theme} 
               toggleTheme={toggleTheme} 
+              isChildSidebarOpen={isChildSidebarOpen}
             />
           }
         >
@@ -90,6 +102,11 @@ export default function App() {
               <DeveloperAssistant
                 sessionId={sessionId}
                 onSessionChange={setSessionId}
+                onNewChat={handleNewChat}
+                onConversationUpdated={handleConversationUpdated}
+                refreshTrigger={refreshTrigger}
+                isHistoryOpen={isChildSidebarOpen}
+                setIsHistoryOpen={setIsChildSidebarOpen}
               />
             }
           />

@@ -5,28 +5,15 @@ import {
   Code2, 
   Loader2, 
   Trash2, 
-  ChevronUp, 
-  ChevronDown, 
-  Info,
-  Sparkles
+  Sparkles,
+  Plus,
+  ArrowUp,
+  ShieldCheck
 } from 'lucide-react';
 import MessageBubble from '../MessageBubble/MessageBubble';
 import { api } from '../../services/api';
 
-const PROGRAMMING_LANGUAGES = [
-  { id: 'all', label: 'All Languages' },
-  { id: 'c#', label: 'C#' },
-  { id: 'python', label: 'Python' },
-  { id: 'java', label: 'Java' },
-  { id: 'javascript', label: 'JavaScript' },
-  { id: 'typescript', label: 'TypeScript' },
-  { id: 'go', label: 'Go' },
-  { id: 'sql', label: 'SQL' },
-  { id: 'c++', label: 'C++' },
-  { id: 'php', label: 'PHP' },
-];
-
-export default function ChatInterface({ sessionId, onSessionChange }) {
+export default function ChatInterface({ sessionId, onSessionChange, onConversationUpdated }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState([]);
   const [inputQuery, setInputQuery] = useState('');
@@ -37,6 +24,7 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
   const [streamingMessage, setStreamingMessage] = useState(null);
 
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -45,6 +33,14 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingMessage]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
+  }, [inputQuery]);
 
   // Check URL search parameters (when navigated from Landing Page starter cards)
   useEffect(() => {
@@ -94,6 +90,10 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
     setShowCodeInput(false);
     setIsLoading(true);
 
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     let activeAssistantMsg = {
       role: 'assistant',
       message: '',
@@ -101,10 +101,14 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
       answer_source: 'none',
       similarity_score: 0.0,
       retrieved_functions: [],
-      query_intent: null
+      query_intent: null,
+      thinking_steps: [],
+      latency_ms: 0,
+      is_streaming: true
     };
 
     setStreamingMessage(activeAssistantMsg);
+    let streamFinished = false;
 
     await api.sendChatStream({
       query: query,
@@ -117,7 +121,9 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
           answer_source: metadata.source,
           similarity_score: metadata.similarity_score,
           retrieved_functions: metadata.retrieved_functions || [],
-          query_intent: metadata.intent
+          query_intent: metadata.intent,
+          thinking_steps: metadata.thinking_steps || [],
+          latency_ms: metadata.latency_ms || 0
         };
         setStreamingMessage({ ...activeAssistantMsg });
       },
@@ -126,15 +132,26 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
         setStreamingMessage({ ...activeAssistantMsg });
       },
       onDone: (doneData) => {
+        if (streamFinished) return;
+        streamFinished = true;
         setIsLoading(false);
-        setMessages((prev) => [...prev, activeAssistantMsg]);
+        const finalMsg = { ...activeAssistantMsg, is_streaming: false };
+        setMessages((prev) => [...prev, finalMsg]);
         setStreamingMessage(null);
+        onConversationUpdated?.();
       },
       onError: (err) => {
+        if (streamFinished) return;
+        streamFinished = true;
         setIsLoading(false);
-        activeAssistantMsg.message += `\n\n*[Error: ${err.message || 'Connection lost'}]*`;
-        setMessages((prev) => [...prev, activeAssistantMsg]);
+        const finalMsg = {
+          ...activeAssistantMsg,
+          message: activeAssistantMsg.message + `\n\n*[Error: ${err.message || 'Connection lost'}]*`,
+          is_streaming: false
+        };
+        setMessages((prev) => [...prev, finalMsg]);
         setStreamingMessage(null);
+        onConversationUpdated?.();
       }
     });
   };
@@ -142,6 +159,7 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
   const handleClearChat = async () => {
     if (sessionId) {
       await api.deleteConversation(sessionId).catch(() => {});
+      onConversationUpdated?.();
     }
     setMessages([]);
     setStreamingMessage(null);
@@ -149,154 +167,170 @@ export default function ChatInterface({ sessionId, onSessionChange }) {
 
   return (
     <div className="flex flex-col h-full bg-bg-base relative transition-colors duration-250">
-      {/* Top Filter and Controls Bar */}
-      <div className="px-6 py-2.5 border-b border-border-subtle bg-bg-panel flex items-center justify-between z-10">
-        <div className="flex items-center space-x-3">
-          <label className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
-            Scope:
-          </label>
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value)}
-            className="text-xs py-1 px-2.5 rounded-lg border border-border-subtle bg-bg-input text-text-primary font-medium focus:outline-none focus:border-brand-primary"
+      {/* Top Subtle Header Bar with Clear Chat */}
+      {messages.length > 0 && (
+        <div className="px-6 py-2 flex items-center justify-end z-10 shrink-0 border-b border-border-subtle/40 bg-bg-base">
+          <button
+            onClick={handleClearChat}
+            className="flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
+            title="Clear Conversation"
           >
-            {PROGRAMMING_LANGUAGES.map((lang) => (
-              <option key={lang.id} value={lang.id}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Chat</span>
+          </button>
         </div>
+      )}
 
-        <div className="flex items-center space-x-2">
-          {messages.length > 0 && (
-            <button
-              onClick={handleClearChat}
-              className="flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs text-text-muted hover:text-red-500 hover:bg-red-500/10 transition-colors"
-              title="Clear Conversation"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Clear</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto divide-y divide-border-subtle/50 custom-scrollbar">
-        {messages.length === 0 && !streamingMessage && (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto">
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-brand-primary flex items-center justify-center mb-4">
-              <Code2 className="w-6 h-6" />
-            </div>
-            <h2 className="text-base font-bold text-text-primary mb-1 font-display">
-              Developer Knowledge Assistant
-            </h2>
-            <p className="text-xs text-text-secondary leading-relaxed mb-6">
-              Ask natural language questions to discover existing organizational functions, understand implementation behavior, or request performance optimizations.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left w-full text-xs">
-              {[
-                "Find functions that validate parts or breakers",
-                "Explain the IsRealBreakerPart method",
-                "Can you improve this function's performance?",
-                "Convert this C# rule to Python"
-              ].map((suggestion, i) => (
-                <button
-                  key={i}
-                  onClick={() => setInputQuery(suggestion)}
-                  className="p-2.5 rounded-xl border border-border-subtle bg-bg-card hover:bg-bg-hover hover:border-brand-orangeBorder text-text-primary transition-all text-left"
-                >
-                  "{suggestion}"
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg, index) => (
-          <MessageBubble key={index} message={msg} />
-        ))}
-
-        {streamingMessage && (
-          <MessageBubble message={streamingMessage} />
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input Box Area */}
-      <div className="p-4 border-t border-border-subtle bg-bg-panel">
-        <form onSubmit={handleSend} className="max-w-4xl mx-auto space-y-2">
-          {/* Collapsible Attached Code Snippet Box */}
-          {showCodeInput && (
-            <div className="rounded-xl border border-brand-orangeBorder bg-bg-input p-3 space-y-1 text-xs">
-              <div className="flex items-center justify-between text-[11px] text-text-secondary font-medium">
-                <span className="flex items-center space-x-1">
-                  <Code2 className="w-3.5 h-3.5 text-brand-primary" />
-                  <span>Attach Code Snippet (Query Context)</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowCodeInput(false)}
-                  className="text-text-muted hover:text-text-primary"
-                >
-                  Hide
-                </button>
+      {/* ── Messages Scroll Area (Gemini-style spacious center column, NO divide-y) ── */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 custom-scrollbar">
+        <div className="max-w-3xl sm:max-w-4xl mx-auto space-y-6">
+          {/* Empty Conversation Welcome Screen */}
+          {messages.length === 0 && !streamingMessage && (
+            <div className="h-full flex flex-col items-center justify-center py-16 text-center max-w-lg mx-auto">
+              <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center mb-4 shadow-xs">
+                <Sparkles className="w-6 h-6" />
               </div>
-              <textarea
-                rows={4}
-                value={attachedCode}
-                onChange={(e) => setAttachedCode(e.target.value)}
-                placeholder="Paste original or proposed code here..."
-                className="w-full p-2.5 bg-bg-card rounded-lg border border-border-subtle font-mono text-[11px] text-text-primary focus:outline-none focus:border-brand-primary resize-y"
-              />
+              <h2 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 font-display">
+                Hello, Developer
+              </h2>
+              <p className="text-xs sm:text-sm text-text-secondary leading-relaxed mb-8 max-w-md">
+                Ask questions to search company runbooks, understand complex code implementations, or optimize logic with zero hallucinations.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-left w-full text-xs">
+                {[
+                  "Find functions that validate parts or breakers",
+                  "Explain the IsRealBreakerPart method",
+                  "Can you improve this function's performance?",
+                  "Convert this C# rule to Python"
+                ].map((suggestion, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setInputQuery(suggestion)}
+                    className="p-3 rounded-2xl border border-border-subtle bg-bg-card hover:bg-bg-hover hover:border-brand-orangeBorder text-text-primary transition-all text-left shadow-xs"
+                  >
+                    "{suggestion}"
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Main Input Row */}
-          <div className="flex items-end space-x-2 bg-bg-input border border-border-subtle rounded-2xl p-2 focus-within:border-brand-primary focus-within:ring-1 focus-within:ring-brand-primary transition-all">
-            <button
-              type="button"
-              onClick={() => setShowCodeInput(!showCodeInput)}
-              className={`p-2 rounded-xl text-xs flex items-center space-x-1 transition-colors ${
-                showCodeInput || attachedCode
-                  ? 'bg-brand-primary text-white'
-                  : 'text-text-muted hover:text-brand-primary hover:bg-bg-hover'
-              }`}
-              title="Attach Code"
-            >
-              <Code2 className="w-4 h-4" />
-            </button>
+          {/* Render All Messages */}
+          {messages.map((msg, index) => (
+            <MessageBubble key={index} message={msg} />
+          ))}
 
-            <textarea
-              rows={1}
-              value={inputQuery}
-              onChange={(e) => setInputQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder="Ask code query or search existing functions... (Enter to send)"
-              className="flex-1 bg-transparent text-xs text-text-primary placeholder-text-placeholder focus:outline-none resize-none py-1.5 max-h-32 leading-relaxed"
-            />
+          {/* Active Streaming Message */}
+          {streamingMessage && (
+            <MessageBubble message={streamingMessage} />
+          )}
 
-            <button
-              type="submit"
-              disabled={isLoading || !inputQuery.trim()}
-              className="p-2 rounded-xl bg-brand-button hover:bg-brand-hover text-white disabled:opacity-40 transition-colors shadow-xs"
-            >
-              {isLoading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        </form>
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* ── Gemini Floating Rounded Input Area ── */}
+      <div className="w-full pb-4 px-4 bg-gradient-to-t from-bg-base via-bg-base to-transparent pt-2 shrink-0">
+        <div className="max-w-3xl sm:max-w-4xl mx-auto">
+          <form onSubmit={handleSend} className="space-y-2">
+            {/* Collapsible Attached Code Snippet Box */}
+            {showCodeInput && (
+              <div className="rounded-2xl border border-brand-orangeBorder bg-bg-input p-3.5 space-y-1.5 text-xs shadow-md animate-fade-in-up">
+                <div className="flex items-center justify-between text-[11px] text-text-secondary font-medium">
+                  <span className="flex items-center space-x-1.5">
+                    <Code2 className="w-4 h-4 text-brand-primary" />
+                    <span>Attach Code Snippet (Query Context)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCodeInput(false)}
+                    className="text-text-muted hover:text-text-primary px-2 py-0.5 rounded hover:bg-bg-hover"
+                  >
+                    Hide
+                  </button>
+                </div>
+                <textarea
+                  rows={4}
+                  value={attachedCode}
+                  onChange={(e) => setAttachedCode(e.target.value)}
+                  placeholder="Paste code here..."
+                  className="w-full p-2.5 bg-bg-card rounded-xl border border-border-subtle font-mono text-[11px] text-text-primary focus:outline-none focus:border-brand-primary resize-y"
+                />
+              </div>
+            )}
+
+            {/* Gemini Floating Pill Container */}
+            <div className="rounded-[28px] bg-bg-card border border-border-subtle focus-within:border-brand-primary p-3 shadow-lg transition-all duration-200">
+              <textarea
+                ref={textareaRef}
+                rows={1}
+                value={inputQuery}
+                onChange={(e) => setInputQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Ask DevKnow or search code..."
+                className="w-full bg-transparent text-sm text-text-primary placeholder-text-placeholder focus:outline-none resize-none px-3 py-1.5 max-h-36 leading-relaxed"
+              />
+
+              {/* Bottom Controls Row inside Pill */}
+              <div className="flex items-center justify-between pt-2 px-1">
+                {/* Left: Attach Code (+) button */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCodeInput(!showCodeInput)}
+                    className={`p-2 rounded-full text-xs flex items-center justify-center transition-colors ${
+                      showCodeInput || attachedCode
+                        ? 'bg-brand-primary text-white'
+                        : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+                    }`}
+                    title="Attach Code Context"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+
+                  {attachedCode && (
+                    <span className="text-[11px] bg-brand-primary/10 text-brand-primary px-2.5 py-0.5 rounded-full font-mono font-medium flex items-center space-x-1">
+                      <Code2 className="w-3.5 h-3.5" />
+                      <span>Code attached</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* Right: Grounding Status + Send Button */}
+                <div className="flex items-center space-x-2">
+                  <span className="hidden sm:inline-flex items-center space-x-1.5 text-[11px] text-text-muted px-2.5 py-1 rounded-full bg-bg-input">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Grounded KB</span>
+                  </span>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || !inputQuery.trim()}
+                    className="w-8 h-8 rounded-full bg-brand-button hover:bg-brand-hover text-white disabled:opacity-30 flex items-center justify-center transition-all shadow-xs active:scale-95"
+                    title="Send message"
+                  >
+                    {isLoading ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+
+          {/* Gemini-style Disclaimer */}
+          <p className="text-[11px] text-text-muted text-center pt-2 select-none">
+            DevKnow is an AI assistant and can make mistakes. Verify critical code and runbook logic.
+          </p>
+        </div>
       </div>
     </div>
   );
