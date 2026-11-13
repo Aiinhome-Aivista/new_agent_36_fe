@@ -1,10 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar/Sidebar';
-import LandingPage from './pages/LandingPage';
-import DeveloperAssistant from './pages/DeveloperAssistant';
-import KnowledgeBase from './pages/KnowledgeBase';
-import Dashboard from './pages/Dashboard';
+
+// Lazy-loaded route views for optimized initial load performance
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const DeveloperAssistant = lazy(() => import('./pages/DeveloperAssistant'));
+const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+
+function PageLoadingFallback() {
+  return (
+    <div className="flex-1 h-full w-full flex flex-col items-center justify-center bg-bg-base transition-colors duration-250">
+      <div className="flex flex-col items-center space-y-3">
+        <div className="w-8 h-8 rounded-full border-2 border-brand-orangeBorder border-t-brand-primary animate-spin" />
+        <span className="text-xs text-text-muted font-medium tracking-wide">Loading workspace...</span>
+      </div>
+    </div>
+  );
+}
 
 function generateUUID() {
   return 'session_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
@@ -28,7 +41,9 @@ function AppLayout({ theme, toggleTheme, isChildSidebarOpen }) {
 
       {/* Content Area */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-bg-base">
-        <Outlet />
+        <Suspense fallback={<PageLoadingFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );
@@ -83,7 +98,11 @@ export default function App() {
         {/* Minimalist Standalone Landing Page (Full-screen, NO sidebar) */}
         <Route 
           path="/" 
-          element={<LandingPage theme={theme} toggleTheme={toggleTheme} />} 
+          element={
+            <Suspense fallback={<PageLoadingFallback />}>
+              <LandingPage theme={theme} toggleTheme={toggleTheme} />
+            </Suspense>
+          } 
         />
 
         {/* Application Workspace Routes (with Parent Sidebar) */}

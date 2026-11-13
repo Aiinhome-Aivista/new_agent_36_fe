@@ -1,25 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { 
-  Send, 
-  Code2, 
-  Loader2, 
-  Trash2, 
+import React, { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  Code2,
+  Trash2,
   Sparkles,
   Plus,
   ArrowUp,
-  ShieldCheck
-} from 'lucide-react';
-import MessageBubble from '../MessageBubble/MessageBubble';
-import { api } from '../../services/api';
+} from "lucide-react";
+import MessageBubble from "../MessageBubble/MessageBubble";
+import { api } from "../../services/api";
 
-export default function ChatInterface({ sessionId, onSessionChange, onConversationUpdated }) {
+export default function ChatInterface({
+  sessionId,
+  onSessionChange,
+  onConversationUpdated,
+}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState([]);
-  const [inputQuery, setInputQuery] = useState('');
-  const [attachedCode, setAttachedCode] = useState('');
+  const [inputQuery, setInputQuery] = useState("");
+  const [attachedCode, setAttachedCode] = useState("");
   const [showCodeInput, setShowCodeInput] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState('all');
+  const [selectedLanguage, setSelectedLanguage] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState(null);
 
@@ -27,7 +28,7 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
   const textareaRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -37,15 +38,15 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
   // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
     }
   }, [inputQuery]);
 
   // Check URL search parameters (when navigated from Landing Page starter cards)
   useEffect(() => {
-    const q = searchParams.get('q');
-    const lang = searchParams.get('lang');
+    const q = searchParams.get("q");
+    const lang = searchParams.get("lang");
     if (q) {
       setInputQuery(q);
       if (lang) setSelectedLanguage(lang);
@@ -78,33 +79,33 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
     if (!query || isLoading) return;
 
     const userMessage = {
-      role: 'user',
+      role: "user",
       message: query,
       attached_code: attachedCode.trim() || null,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInputQuery('');
-    setAttachedCode('');
+    setInputQuery("");
+    setAttachedCode("");
     setShowCodeInput(false);
     setIsLoading(true);
 
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = "auto";
     }
 
     let activeAssistantMsg = {
-      role: 'assistant',
-      message: '',
+      role: "assistant",
+      message: "",
       user_query: query,
-      answer_source: 'none',
+      answer_source: "none",
       similarity_score: 0.0,
       retrieved_functions: [],
       query_intent: null,
       thinking_steps: [],
       latency_ms: 0,
-      is_streaming: true
+      is_streaming: true,
     };
 
     setStreamingMessage(activeAssistantMsg);
@@ -123,7 +124,7 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
           retrieved_functions: metadata.retrieved_functions || [],
           query_intent: metadata.intent,
           thinking_steps: metadata.thinking_steps || [],
-          latency_ms: metadata.latency_ms || 0
+          latency_ms: metadata.latency_ms || 0,
         };
         setStreamingMessage({ ...activeAssistantMsg });
       },
@@ -144,15 +145,23 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
         if (streamFinished) return;
         streamFinished = true;
         setIsLoading(false);
+        console.error("[DevKnow Stream Connection Error]:", err);
+        const fallbackText =
+          activeAssistantMsg.retrieved_functions?.length > 0
+            ? activeAssistantMsg.message ||
+              "I have retrieved the relevant organizational function(s) above. You can view their complete implementation details in the function cards."
+            : activeAssistantMsg.message ||
+              "Unable to reach the assistant service. Please check your connection and try again.";
         const finalMsg = {
           ...activeAssistantMsg,
-          message: activeAssistantMsg.message + `\n\n*[Error: ${err.message || 'Connection lost'}]*`,
-          is_streaming: false
+          message: fallbackText,
+          is_streaming: false,
+          is_error: !activeAssistantMsg.message,
         };
         setMessages((prev) => [...prev, finalMsg]);
         setStreamingMessage(null);
         onConversationUpdated?.();
-      }
+      },
     });
   };
 
@@ -194,7 +203,9 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
                 Hello, Developer
               </h2>
               <p className="text-xs sm:text-sm text-text-secondary leading-relaxed mb-8 max-w-md">
-                Ask questions to search company runbooks, understand complex code implementations, or optimize logic with zero hallucinations.
+                Ask questions to search company runbooks, understand complex
+                code implementations, or optimize logic with zero
+                hallucinations.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-left w-full text-xs">
@@ -202,11 +213,14 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
                   "Find functions that validate parts or breakers",
                   "Explain the IsRealBreakerPart method",
                   "Can you improve this function's performance?",
-                  "Convert this C# rule to Python"
+                  "Convert this C# rule to Python",
                 ].map((suggestion, i) => (
                   <button
                     key={i}
-                    onClick={() => setInputQuery(suggestion)}
+                    onClick={() => {
+                      setInputQuery(suggestion);
+                      textareaRef.current?.focus();
+                    }}
                     className="p-3 rounded-2xl border border-border-subtle bg-bg-card hover:bg-bg-hover hover:border-brand-orangeBorder text-text-primary transition-all text-left shadow-xs"
                   >
                     "{suggestion}"
@@ -218,12 +232,19 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
 
           {/* Render All Messages */}
           {messages.map((msg, index) => (
-            <MessageBubble key={index} message={msg} />
+            <MessageBubble 
+              key={msg.id || index} 
+              message={msg} 
+              onKBSaved={onConversationUpdated} 
+            />
           ))}
 
           {/* Active Streaming Message */}
           {streamingMessage && (
-            <MessageBubble message={streamingMessage} />
+            <MessageBubble 
+              message={streamingMessage} 
+              onKBSaved={onConversationUpdated} 
+            />
           )}
 
           <div ref={messagesEndRef} />
@@ -268,7 +289,7 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                   }
@@ -286,8 +307,8 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
                     onClick={() => setShowCodeInput(!showCodeInput)}
                     className={`p-2 rounded-full text-xs flex items-center justify-center transition-colors ${
                       showCodeInput || attachedCode
-                        ? 'bg-brand-primary text-white'
-                        : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'
+                        ? "bg-brand-primary text-white"
+                        : "text-text-muted hover:text-text-primary hover:bg-bg-hover"
                     }`}
                     title="Attach Code Context"
                   >
@@ -328,7 +349,8 @@ export default function ChatInterface({ sessionId, onSessionChange, onConversati
 
           {/* Gemini-style Disclaimer */}
           <p className="text-[11px] text-text-muted text-center pt-2 select-none">
-            DevKnow is an AI assistant and can make mistakes. Verify critical code and runbook logic.
+            DevKnow is an AI assistant and can make mistakes. Verify critical
+            code and runbook logic.
           </p>
         </div>
       </div>
