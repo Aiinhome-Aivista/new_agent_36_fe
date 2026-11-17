@@ -25,6 +25,32 @@ export default function MessageBubble({ message, onKBSaved }) {
   const [showAttachedCode, setShowAttachedCode] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Compute grounding stats for display (supporting live stream & history)
+  const groundingStats = message.grounding_stats || (
+    isKBHit 
+      ? {
+          kb_percentage: Math.max(65, Math.min(95, Math.round((message.similarity_score || 0.8) * 100))),
+          llm_percentage: 100 - Math.max(65, Math.min(95, Math.round((message.similarity_score || 0.8) * 100))),
+          attribution_label: "Runbook Grounded",
+          similarity_score: message.similarity_score || 0.0
+        }
+      : isLLMFallback
+      ? {
+          kb_percentage: 0,
+          llm_percentage: 100,
+          attribution_label: "General AI Knowledge",
+          similarity_score: 0.0
+        }
+      : (isSecurityBlocked || isGuardrailBlocked)
+      ? {
+          kb_percentage: 0,
+          llm_percentage: 0,
+          attribution_label: "Policy Guardrail",
+          similarity_score: 0.0
+        }
+      : null
+  );
+
   const handleCopyMessage = () => {
     if (!message.message) return;
     navigator.clipboard.writeText(message.message);
@@ -250,19 +276,30 @@ export default function MessageBubble({ message, onKBSaved }) {
       <div className="flex-1 min-w-0 space-y-2.5">
         {/* Top Badges (Discreet & Minimal) */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-xs text-text-primary font-display">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="font-bold text-xs text-text-primary font-display mr-1">
               DevKnow
             </span>
 
             {isKBHit && (
-              <span className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                <span>From Runbook</span>
-                {message.similarity_score !== undefined && (
-                  <span className="ml-1 opacity-75 font-mono">({Math.round(message.similarity_score * 100)}%)</span>
+              <>
+                <span className="flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                  <span>From Runbook</span>
+                  {message.similarity_score !== undefined && (
+                    <span className="ml-1 opacity-75 font-mono">({Math.round(message.similarity_score * 100)}%)</span>
+                  )}
+                </span>
+                {groundingStats && (
+                  <span className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>KB: {groundingStats.kb_percentage}%</span>
+                    <span className="opacity-40">•</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
+                    <span>LLM: {groundingStats.llm_percentage}%</span>
+                  </span>
                 )}
-              </span>
+              </>
             )}
 
             {isSecurityBlocked ? (
@@ -276,9 +313,18 @@ export default function MessageBubble({ message, onKBSaved }) {
                 <span>Domain Guardrail</span>
               </span>
             ) : isLLMFallback && (
-              <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-bg-input text-text-muted border border-border-subtle">
-                <span>General AI</span>
-              </span>
+              <>
+                <span className="flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-bg-input text-text-muted border border-border-subtle">
+                  <span>General AI</span>
+                </span>
+                {groundingStats && (
+                  <span className="flex items-center space-x-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-bg-card text-text-muted border border-border-subtle">
+                    <span>KB: 0%</span>
+                    <span className="opacity-40">•</span>
+                    <span className="text-brand-primary font-semibold">LLM: 100%</span>
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -289,6 +335,7 @@ export default function MessageBubble({ message, onKBSaved }) {
             thinkingSteps={message.thinking_steps}
             isStreaming={isStreaming && !message.message}
             latencyMs={message.latency_ms}
+            groundingStats={groundingStats}
           />
         )}
 

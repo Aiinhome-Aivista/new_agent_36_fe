@@ -25,7 +25,7 @@ export default function ChatHistorySidebar({
     loadConversations();
   }, [refreshTrigger, activeSessionId]);
 
-  const loadConversations = async () => {
+  const loadConversations = async (retryCount = 0) => {
     try {
       setLoading(true);
       const res = await api.getConversations();
@@ -33,7 +33,11 @@ export default function ChatHistorySidebar({
         setConversations(res.conversations);
       }
     } catch (err) {
-      console.error('Failed to load conversations:', err);
+      if (retryCount < 2) {
+        setTimeout(() => loadConversations(retryCount + 1), 1500);
+      } else {
+        console.warn('Backend connecting...', err.message);
+      }
     } finally {
       setLoading(false);
     }

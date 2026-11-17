@@ -62,14 +62,18 @@ export default function ChatInterface({
     }
   }, [sessionId]);
 
-  const loadConversation = async (sid) => {
+  const loadConversation = async (sid, retryCount = 0) => {
     try {
       const data = await api.getConversation(sid);
       if (data.success && data.messages) {
         setMessages(data.messages);
       }
     } catch (e) {
-      setMessages([]);
+      if (retryCount < 2) {
+        setTimeout(() => loadConversation(sid, retryCount + 1), 1500);
+      } else {
+        setMessages([]);
+      }
     }
   };
 
@@ -104,6 +108,7 @@ export default function ChatInterface({
       retrieved_functions: [],
       query_intent: null,
       thinking_steps: [],
+      grounding_stats: null,
       latency_ms: 0,
       is_streaming: true,
     };
@@ -124,6 +129,7 @@ export default function ChatInterface({
           retrieved_functions: metadata.retrieved_functions || [],
           query_intent: metadata.intent,
           thinking_steps: metadata.thinking_steps || [],
+          grounding_stats: metadata.grounding_stats || null,
           latency_ms: metadata.latency_ms || 0,
         };
         setStreamingMessage({ ...activeAssistantMsg });
