@@ -18,8 +18,24 @@ export default function ChatHistorySidebar({
   onNewChat, 
   refreshTrigger 
 }) {
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Initialize with cached conversations if present for instant rendering
+  const [conversations, setConversations] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('devknow_cached_conversations');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  // Loading starts as true on initial mount if cache is empty
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('devknow_cached_conversations');
+      return !cached || JSON.parse(cached).length === 0;
+    } catch {
+      return true;
+    }
+  });
 
   useEffect(() => {
     loadConversations();
@@ -31,6 +47,9 @@ export default function ChatHistorySidebar({
       const res = await api.getConversations();
       if (res.success && res.conversations) {
         setConversations(res.conversations);
+        try {
+          sessionStorage.setItem('devknow_cached_conversations', JSON.stringify(res.conversations));
+        } catch (e) {}
       }
     } catch (err) {
       if (retryCount < 2) {
@@ -47,7 +66,13 @@ export default function ChatHistorySidebar({
     e.stopPropagation();
     try {
       await api.deleteConversation(sessionId);
-      setConversations((prev) => prev.filter((c) => c.session_id !== sessionId));
+      setConversations((prev) => {
+        const updated = prev.filter((c) => c.session_id !== sessionId);
+        try {
+          sessionStorage.setItem('devknow_cached_conversations', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
       if (activeSessionId === sessionId) {
         onNewChat();
       }
@@ -91,7 +116,23 @@ export default function ChatHistorySidebar({
 
         {/* Scrollable Conversation Sessions List */}
         <div className="flex-1 overflow-y-auto px-2 space-y-1 custom-scrollbar">
-          {conversations.length === 0 ? (
+          {loading && conversations.length === 0 ? (
+            /* Skeleton Loader with pulsing pill placeholders */
+            <div className="space-y-1.5 p-1 animate-pulse">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center space-x-2.5 px-3 py-2.5 rounded-xl bg-bg-card/50 border border-border-subtle/40"
+                >
+                  <div className="w-3.5 h-3.5 rounded-md bg-border-subtle/80 shrink-0" />
+                  <div
+                    className="h-3 rounded-full bg-border-subtle/70"
+                    style={{ width: `${55 + ((i * 19) % 35)}%` }}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : conversations.length === 0 ? (
             <div className="px-3 py-8 text-center text-[11px] text-text-muted">
               No recent chats yet
             </div>

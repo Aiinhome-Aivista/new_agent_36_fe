@@ -22,6 +22,7 @@ export default function ChatInterface({
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState(null);
 
   const messagesEndRef = useRef(null);
@@ -59,14 +60,19 @@ export default function ChatInterface({
   useEffect(() => {
     if (sessionId) {
       loadConversation(sessionId);
+    } else {
+      setMessages([]);
     }
   }, [sessionId]);
 
   const loadConversation = async (sid, retryCount = 0) => {
     try {
+      setIsSessionLoading(true);
       const data = await api.getConversation(sid);
       if (data.success && data.messages) {
         setMessages(data.messages);
+      } else {
+        setMessages([]);
       }
     } catch (e) {
       if (retryCount < 2) {
@@ -74,6 +80,8 @@ export default function ChatInterface({
       } else {
         setMessages([]);
       }
+    } finally {
+      setIsSessionLoading(false);
     }
   };
 
@@ -199,8 +207,52 @@ export default function ChatInterface({
       {/* ── Messages Scroll Area (Gemini-style spacious center column, NO divide-y) ── */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 custom-scrollbar">
         <div className="max-w-3xl sm:max-w-4xl mx-auto space-y-6">
+          {/* Skeleton Loader while loading session conversation messages */}
+          {isSessionLoading && (
+            <div className="space-y-6 animate-pulse py-4">
+              {/* User question skeleton bubble */}
+              <div className="flex justify-end">
+                <div className="w-2/3 sm:w-1/2 rounded-2xl rounded-tr-xs bg-bg-card border border-border-subtle/60 p-4 space-y-2">
+                  <div className="h-3.5 w-3/4 bg-border-subtle/80 rounded" />
+                </div>
+              </div>
+
+              {/* Assistant response skeleton bubble */}
+              <div className="flex space-x-3 items-start">
+                <div className="w-8 h-8 rounded-xl bg-brand-primary/20 shrink-0 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-brand-primary opacity-60" />
+                </div>
+                <div className="flex-1 rounded-2xl bg-bg-card border border-border-subtle/60 p-5 space-y-3">
+                  <div className="h-4 w-1/4 bg-brand-primary/20 rounded" />
+                  <div className="h-3 w-5/6 bg-border-subtle/80 rounded" />
+                  <div className="h-3 w-4/6 bg-border-subtle/70 rounded" />
+                  <div className="h-3 w-1/2 bg-border-subtle/60 rounded" />
+                </div>
+              </div>
+
+              {/* Second User question skeleton */}
+              <div className="flex justify-end">
+                <div className="w-1/2 sm:w-1/3 rounded-2xl rounded-tr-xs bg-bg-card border border-border-subtle/60 p-4 space-y-2">
+                  <div className="h-3.5 w-4/5 bg-border-subtle/80 rounded" />
+                </div>
+              </div>
+
+              {/* Second Assistant response skeleton */}
+              <div className="flex space-x-3 items-start">
+                <div className="w-8 h-8 rounded-xl bg-brand-primary/20 shrink-0 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-brand-primary opacity-60" />
+                </div>
+                <div className="flex-1 rounded-2xl bg-bg-card border border-border-subtle/60 p-5 space-y-3">
+                  <div className="h-4 w-1/3 bg-brand-primary/20 rounded" />
+                  <div className="h-3 w-full bg-border-subtle/80 rounded" />
+                  <div className="h-3 w-4/5 bg-border-subtle/70 rounded" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Empty Conversation Welcome Screen */}
-          {messages.length === 0 && !streamingMessage && (
+          {!isSessionLoading && messages.length === 0 && !streamingMessage && (
             <div className="h-full flex flex-col items-center justify-center py-16 text-center max-w-lg mx-auto">
               <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 text-brand-primary flex items-center justify-center mb-4 shadow-xs">
                 <Sparkles className="w-6 h-6" />
@@ -237,7 +289,7 @@ export default function ChatInterface({
           )}
 
           {/* Render All Messages */}
-          {messages.map((msg, index) => (
+          {!isSessionLoading && messages.map((msg, index) => (
             <MessageBubble 
               key={msg.id || index} 
               message={msg} 
