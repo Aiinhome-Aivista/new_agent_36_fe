@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { showGlobalToast } from '../context/ToastContext';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
@@ -7,7 +8,59 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 45000,
 });
+
+/**
+ * Global response interceptor:
+ * - Unifies error messages from standardized backend envelopes ({ status, status_code, message, error })
+ * - Shows global toast alerts on critical network failure or server 500 errors
+ * - Enriches error objects with `formattedMessage` and `statusCode`
+ */
+apiClient.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    let message = 'An unexpected network error occurred.';
+    const statusCode = error.response?.status || (error.code === 'ECONNABORTED' ? 408 : 0);
+
+    if (error.response?.data) {
+      const data = error.response.data;
+      message = data.message || data.error || (typeof data === 'string' ? data : message);
+    } else if (error.code === 'ECONNABORTED') {
+      message = 'Request timed out. The server took too long to respond.';
+    } else if (error.request) {
+      message = 'Unable to connect to the backend server. Please verify DevKnow is running on port 5000.';
+    } else if (error.message) {
+      message = error.message;
+    }
+
+    // Attach normalized properties
+    error.formattedMessage = message;
+    error.statusCode = statusCode;
+
+    // Show non-blocking global toast for network loss or server 500 crashes
+    if (!error.response || statusCode >= 500) {
+      showGlobalToast('error', message);
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Universal error message extraction helper for React components.
+ */
+export const formatApiError = (err, fallbackMessage = 'An unexpected error occurred') => {
+  if (!err) return fallbackMessage;
+  if (typeof err === 'string') return err;
+  if (err.formattedMessage) return err.formattedMessage;
+  if (err.response?.data?.message) return err.response.data.message;
+  if (err.response?.data?.error) return err.response.data.error;
+  if (err.message) return err.message;
+  return fallbackMessage;
+};
 
 export const api = {
   // ── Chat & SSE Streaming ─────────────────────────────────────────
@@ -28,7 +81,8 @@ export const api = {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+        const errorMessage = errorData.message || errorData.error || `Server returned HTTP ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const reader = response.body.getReader();
@@ -86,7 +140,7 @@ export const api = {
   async uploadKnowledgeBase(file) {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await axios.post(`${API_BASE}/knowledge-base/upload`, formData, {
+    const res = await apiClient.post('/knowledge-base/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data;
@@ -96,7 +150,7 @@ export const api = {
     const formData = new FormData();
     formData.append('file', file);
     if (notes) formData.append('notes', notes);
-    const res = await axios.post(`${API_BASE}/knowledge-base/upload-code-or-doc`, formData, {
+    const res = await apiClient.post('/knowledge-base/upload-code-or-doc', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data;
@@ -175,4 +229,3 @@ export const api = {
     return res.data;
   },
 };
-

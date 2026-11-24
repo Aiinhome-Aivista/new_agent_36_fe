@@ -1,6 +1,8 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
+import { ToastProvider } from './context/ToastContext';
 
 // Lazy-loaded route views for optimized initial load performance
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -93,46 +95,50 @@ export default function App() {
   };
 
   return (
-    <Router>
-      <Routes>
-        {/* Minimalist Standalone Landing Page (Full-screen, NO sidebar) */}
-        <Route 
-          path="/" 
-          element={
-            <Suspense fallback={<PageLoadingFallback />}>
-              <LandingPage theme={theme} toggleTheme={toggleTheme} />
-            </Suspense>
-          } 
-        />
-
-        {/* Application Workspace Routes (with Parent Sidebar) */}
-        <Route 
-          element={
-            <AppLayout 
-              theme={theme} 
-              toggleTheme={toggleTheme} 
-              isChildSidebarOpen={isChildSidebarOpen}
+    <ErrorBoundary>
+      <ToastProvider>
+        <Router>
+          <Routes>
+            {/* Minimalist Standalone Landing Page (Full-screen, NO sidebar) */}
+            <Route 
+              path="/" 
+              element={
+                <Suspense fallback={<PageLoadingFallback />}>
+                  <LandingPage theme={theme} toggleTheme={toggleTheme} />
+                </Suspense>
+              } 
             />
-          }
-        >
-          <Route
-            path="/chat"
-            element={
-              <DeveloperAssistant
-                sessionId={sessionId}
-                onSessionChange={setSessionId}
-                onNewChat={handleNewChat}
-                onConversationUpdated={handleConversationUpdated}
-                refreshTrigger={refreshTrigger}
-                isHistoryOpen={isChildSidebarOpen}
-                setIsHistoryOpen={setIsChildSidebarOpen}
+
+            {/* Application Workspace Routes (with Parent Sidebar) */}
+            <Route 
+              element={
+                <AppLayout 
+                  theme={theme} 
+                  toggleTheme={toggleTheme} 
+                  isChildSidebarOpen={isChildSidebarOpen}
+                />
+              }
+            >
+              <Route
+                path="/chat"
+                element={
+                  <DeveloperAssistant
+                    sessionId={sessionId}
+                    onSessionChange={setSessionId}
+                    onNewChat={handleNewChat}
+                    onConversationUpdated={handleConversationUpdated}
+                    refreshTrigger={refreshTrigger}
+                    isHistoryOpen={isChildSidebarOpen}
+                    setIsHistoryOpen={setIsChildSidebarOpen}
+                  />
+                }
               />
-            }
-          />
-          <Route path="/knowledge-base" element={<KnowledgeBase />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Route>
-      </Routes>
-    </Router>
+              <Route path="/knowledge-base" element={<KnowledgeBase />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+            </Route>
+          </Routes>
+        </Router>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }

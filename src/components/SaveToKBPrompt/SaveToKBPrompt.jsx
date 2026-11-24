@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Save, Check, AlertCircle } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, formatApiError } from '../../services/api';
 
 export default function SaveToKBPrompt({ query, responseText, similarityScore, onSaved }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -34,10 +34,10 @@ export default function SaveToKBPrompt({ query, responseText, similarityScore, o
         setSaved(true);
         if (onSaved) onSaved(res);
       } else {
-        setError(res.error || 'Failed to save to knowledge base');
+        setError(res.message || res.error || 'Failed to save to knowledge base');
       }
     } catch (err) {
-      setError(err.message || 'Error communicating with server');
+      setError(formatApiError(err, 'Error communicating with server'));
     } finally {
       setSaving(false);
     }

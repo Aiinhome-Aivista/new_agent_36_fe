@@ -17,11 +17,13 @@ import {
   X,
   Code2
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, formatApiError } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import FileUpload from '../components/FileUpload/FileUpload';
 import FunctionCard from '../components/FunctionCard/FunctionCard';
 
 export default function KnowledgeBase() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('browse'); // 'browse' | 'staging' | 'upload' | 'ai_learned'
   const [functions, setFunctions] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -73,11 +75,12 @@ export default function KnowledgeBase() {
         setStagingItems((prev) => prev.filter((item) => item.id !== funcId));
         setStagingCount((prev) => Math.max(0, prev - 1));
         fetchFunctions();
+        toast.success(res.message || 'Function approved and added to knowledge base');
       } else {
-        alert(res.error || 'Failed to approve function');
+        toast.error(res.message || res.error || 'Failed to approve function');
       }
     } catch (err) {
-      alert(`Approval error: ${err.message}`);
+      toast.error(formatApiError(err, 'Failed to approve function'));
     } finally {
       setActionInProgress(null);
     }
@@ -91,9 +94,12 @@ export default function KnowledgeBase() {
       if (res.success) {
         setStagingItems((prev) => prev.filter((item) => item.id !== funcId));
         setStagingCount((prev) => Math.max(0, prev - 1));
+        toast.success(res.message || 'Function rejected from staging queue');
+      } else {
+        toast.error(res.message || res.error || 'Failed to reject function');
       }
     } catch (err) {
-      alert(`Rejection error: ${err.message}`);
+      toast.error(formatApiError(err, 'Failed to reject function'));
     } finally {
       setActionInProgress(null);
     }
@@ -115,6 +121,7 @@ export default function KnowledgeBase() {
       }
     } catch (err) {
       console.error('Failed to fetch functions:', err);
+      toast.error(formatApiError(err, 'Failed to load functions'));
     } finally {
       setIsLoading(false);
     }
@@ -133,10 +140,13 @@ export default function KnowledgeBase() {
       const res = await api.reindex();
       if (res.success) {
         setReindexSuccess(res.message);
+        toast.success(res.message || 'Search indexes synchronized successfully');
         setTimeout(() => setReindexSuccess(null), 4000);
+      } else {
+        toast.error(res.message || res.error || 'Re-indexing failed');
       }
     } catch (err) {
-      alert(`Re-indexing failed: ${err.message}`);
+      toast.error(formatApiError(err, 'Re-indexing failed'));
     } finally {
       setIsReindexing(false);
     }
@@ -149,9 +159,12 @@ export default function KnowledgeBase() {
       if (res.success) {
         setFunctions((prev) => prev.filter((f) => f.id !== funcId));
         setTotalCount((prev) => Math.max(0, prev - 1));
+        toast.success(res.message || 'Record deleted from knowledge base');
+      } else {
+        toast.error(res.message || res.error || 'Failed to delete record');
       }
     } catch (err) {
-      alert(`Delete failed: ${err.message}`);
+      toast.error(formatApiError(err, 'Delete failed'));
     }
   };
 

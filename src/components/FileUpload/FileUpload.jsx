@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { UploadCloud, FileSpreadsheet, Loader2, AlertCircle } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, formatApiError } from '../../services/api';
 import IngestionSummary from '../IngestionSummary/IngestionSummary';
 
 export default function FileUpload({ onUploadComplete }) {
@@ -81,7 +81,7 @@ export default function FileUpload({ onUploadComplete }) {
       setSummary(res);
       if (onUploadComplete) onUploadComplete(res);
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'File upload failed');
+      setError(formatApiError(err, 'File upload failed'));
     } finally {
       setUploading(false);
     }

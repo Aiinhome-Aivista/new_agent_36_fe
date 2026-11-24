@@ -11,9 +11,11 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { api } from '../services/api';
+import { api, formatApiError } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 export default function Dashboard() {
+  const toast = useToast();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +31,7 @@ export default function Dashboard() {
       }
     } catch (e) {
       console.error('Failed to load stats:', e);
+      toast.error(formatApiError(e, 'Failed to load dashboard metrics'));
     } finally {
       setLoading(false);
     }
