@@ -40,12 +40,12 @@ export default function FileUpload({ onUploadComplete }) {
 
   const validateAndSetFile = (file) => {
     setError(null);
-    const validExtensions = ['.xlsx', '.xls'];
+    const validExtensions = ['.xlsx', '.xls', '.py', '.cs', '.ts', '.js', '.jsx', '.tsx', '.java', '.go', '.cpp', '.md', '.txt'];
     const fileName = file.name.toLowerCase();
     const isValid = validExtensions.some((ext) => fileName.endsWith(ext));
 
     if (!isValid) {
-      setError('Please select a valid Excel file (.xlsx or .xls)');
+      setError('Please select a valid file (.xlsx, .xls, .py, .cs, .ts, .js, .md, .txt)');
       setSelectedFile(null);
       return;
     }
@@ -60,13 +60,24 @@ export default function FileUpload({ onUploadComplete }) {
     setSummary(null);
   };
 
+  const isCodeOrDoc = (filename) => {
+    if (!filename) return false;
+    const lower = filename.toLowerCase();
+    return ['.py', '.cs', '.ts', '.js', '.jsx', '.tsx', '.java', '.go', '.cpp', '.md', '.txt'].some(ext => lower.endsWith(ext));
+  };
+
   const handleUpload = async () => {
     if (!selectedFile || uploading) return;
     setUploading(true);
     setError(null);
 
     try {
-      const res = await api.uploadKnowledgeBase(selectedFile);
+      let res;
+      if (isCodeOrDoc(selectedFile.name)) {
+        res = await api.uploadCodeOrDoc(selectedFile);
+      } else {
+        res = await api.uploadKnowledgeBase(selectedFile);
+      }
       setSummary(res);
       if (onUploadComplete) onUploadComplete(res);
     } catch (err) {
@@ -89,10 +100,11 @@ export default function FileUpload({ onUploadComplete }) {
       ) : (
         <div className="rounded-2xl border border-border-subtle bg-bg-card p-6 shadow-xs text-xs">
           <h3 className="font-bold text-sm text-text-primary mb-1 font-display">
-            Upload Knowledge Base Runbook / Rulebook
+            Upload Knowledge Base Runbook, Code Files, or Documentation
           </h3>
           <p className="text-text-secondary mb-5 leading-relaxed">
-            Upload organizational function Excel spreadsheets (.xlsx, .xls). Functions will be verified, stored, and indexed into the company knowledge base.
+            Upload Excel runbooks (.xlsx, .xls), source code files (.py, .cs, .ts, .js), or architecture documentation (.md, .txt).
+            Code units are parsed with <strong>AST & Tree-sitter</strong> and routed to the <strong>Human Verification Queue</strong> before entering the active knowledge base.
           </p>
 
           <div
@@ -110,7 +122,7 @@ export default function FileUpload({ onUploadComplete }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.py,.cs,.ts,.js,.jsx,.tsx,.java,.go,.cpp,.md,.txt"
               onChange={handleChange}
               className="hidden"
             />
@@ -118,10 +130,10 @@ export default function FileUpload({ onUploadComplete }) {
               <UploadCloud className="w-6 h-6" />
             </div>
             <p className="font-semibold text-text-primary mb-1">
-              {selectedFile ? selectedFile.name : 'Click to browse or drag & drop Excel file'}
+              {selectedFile ? selectedFile.name : 'Click to browse or drag & drop Runbook, Code or Doc'}
             </p>
             <p className="text-text-muted text-[11px]">
-              Supports .xlsx, .xls (Up to 50MB)
+              Supports Excel (.xlsx, .xls), Source Code (.py, .cs, .ts, .js), Documentation (.md, .txt) up to 50MB
             </p>
           </div>
 

@@ -9,14 +9,20 @@ import {
   FileCode,
   Trash2,
   CheckCircle,
-  Loader2
+  Loader2,
+  ShieldCheck,
+  ShieldAlert,
+  AlertTriangle,
+  Check,
+  X,
+  Code2
 } from 'lucide-react';
 import { api } from '../services/api';
 import FileUpload from '../components/FileUpload/FileUpload';
 import FunctionCard from '../components/FunctionCard/FunctionCard';
 
 export default function KnowledgeBase() {
-  const [activeTab, setActiveTab] = useState('browse'); // 'browse' | 'upload' | 'ai_learned'
+  const [activeTab, setActiveTab] = useState('browse'); // 'browse' | 'staging' | 'upload' | 'ai_learned'
   const [functions, setFunctions] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,11 +32,72 @@ export default function KnowledgeBase() {
   const [isReindexing, setIsReindexing] = useState(false);
   const [reindexSuccess, setReindexSuccess] = useState(null);
 
+  // ── Staging / Verification Queue State ──
+  const [stagingItems, setStagingItems] = useState([]);
+  const [stagingCount, setStagingCount] = useState(0);
+  const [isLoadingStaging, setIsLoadingStaging] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState(null);
+
+  useEffect(() => {
+    fetchStagingQueue();
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'browse' || activeTab === 'ai_learned') {
       fetchFunctions();
+    } else if (activeTab === 'staging') {
+      fetchStagingQueue();
     }
   }, [activeTab, selectedLanguage, selectedSource]);
+
+  const fetchStagingQueue = async () => {
+    setIsLoadingStaging(true);
+    try {
+      const res = await api.getStagingQueue('pending_review');
+      if (res.success) {
+        setStagingItems(res.items || []);
+        setStagingCount(res.count || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch staging queue:', err);
+    } finally {
+      setIsLoadingStaging(false);
+    }
+  };
+
+  const handleApproveStaged = async (funcId) => {
+    setActionInProgress(funcId);
+    try {
+      const res = await api.approveStagedFunction(funcId);
+      if (res.success) {
+        setStagingItems((prev) => prev.filter((item) => item.id !== funcId));
+        setStagingCount((prev) => Math.max(0, prev - 1));
+        fetchFunctions();
+      } else {
+        alert(res.error || 'Failed to approve function');
+      }
+    } catch (err) {
+      alert(`Approval error: ${err.message}`);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleRejectStaged = async (funcId) => {
+    if (!window.confirm('Reject this function? It will be permanently excluded from the Knowledge Base.')) return;
+    setActionInProgress(funcId);
+    try {
+      const res = await api.rejectStagedFunction(funcId);
+      if (res.success) {
+        setStagingItems((prev) => prev.filter((item) => item.id !== funcId));
+        setStagingCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      alert(`Rejection error: ${err.message}`);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
 
   const fetchFunctions = async () => {
     setIsLoading(true);
@@ -136,6 +203,23 @@ export default function KnowledgeBase() {
         </button>
 
         <button
+          onClick={() => setActiveTab('staging')}
+          className={`pb-2.5 flex items-center space-x-1.5 border-b-2 transition-colors ${
+            activeTab === 'staging'
+              ? 'border-amber-500 text-amber-500 font-bold'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 text-amber-500" />
+          <span>Verification Queue</span>
+          {stagingCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-500 font-bold">
+              {stagingCount}
+            </span>
+          )}
+        </button>
+
+        <button
           onClick={() => setActiveTab('upload')}
           className={`pb-2.5 flex items-center space-x-1.5 border-b-2 transition-colors ${
             activeTab === 'upload'
@@ -144,7 +228,7 @@ export default function KnowledgeBase() {
           }`}
         >
           <Upload className="w-4 h-4" />
-          <span>Upload & Ingest Excel</span>
+          <span>Upload & Ingest</span>
         </button>
 
         <button
@@ -162,7 +246,144 @@ export default function KnowledgeBase() {
 
       {/* Tab Body */}
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-        {activeTab === 'upload' ? (
+        {activeTab === 'staging' ? (
+          <div className="max-w-5xl mx-auto space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs">
+              <div className="flex items-center space-x-2.5">
+                <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0" />
+                <div>
+                  <h4 className="font-bold text-sm">Human-in-the-Loop Verification Queue ({stagingCount})</h4>
+                  <p className="text-[11px] text-text-secondary dark:text-amber-200/80">
+                    Functions extracted from code files, documentation, or chat learning. Review diffs and verify before committing to the production Knowledge Base.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={fetchStagingQueue}
+                className="px-3 py-1.5 rounded-xl border border-amber-500/40 hover:bg-amber-500/20 text-xs font-semibold transition-colors"
+              >
+                Refresh Queue
+              </button>
+            </div>
+
+            {isLoadingStaging ? (
+              <div className="p-12 text-center text-xs text-text-muted flex flex-col items-center">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-primary mb-2" />
+                <span>Loading staging queue...</span>
+              </div>
+            ) : stagingItems.length === 0 ? (
+              <div className="p-12 text-center text-xs text-text-muted rounded-2xl border border-dashed border-border-subtle bg-bg-card">
+                <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-80" />
+                <p className="font-semibold text-text-primary mb-1">Queue is Clear</p>
+                <p className="text-text-muted">
+                  All functions have been verified. No pending items require review.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {stagingItems.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-border-subtle bg-bg-card p-5 space-y-3.5 shadow-xs">
+                    {/* Header */}
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center space-x-2.5">
+                        <span className="font-bold font-mono text-sm text-text-primary">{item.function_name}</span>
+                        <span className="px-2 py-0.5 rounded-lg bg-bg-input text-brand-primary font-mono text-[11px] uppercase font-semibold">
+                          {item.programming_language}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-500 font-mono text-[11px] font-bold">
+                          v{item.version}
+                        </span>
+                        <span className="text-[11px] text-text-muted font-medium">
+                          Source: {item.knowledge_source}
+                        </span>
+                      </div>
+
+                      {/* Conflict Badge */}
+                      <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl flex items-center space-x-1 ${
+                        item.conflict_status === 'conflict_detected'
+                          ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
+                          : 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
+                      }`}>
+                        {item.conflict_status === 'conflict_detected' ? (
+                          <>
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Version Conflict Detected</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Clean New Entry</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Conflict Explanation if present */}
+                    {item.conflicting_parent && (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] space-y-1">
+                        <p className="font-semibold text-amber-600 dark:text-amber-400">
+                          ⚠️ Existing version found in Knowledge Base: <strong>v{item.conflicting_parent.version}</strong> (ID #{item.conflicting_parent.id})
+                        </p>
+                        <p className="text-text-secondary">
+                          Approving this function will increment its version to <strong>v{item.version}</strong> and link to the previous implementation as an audit trail.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Description & AST Metadata */}
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      {item.description}
+                    </p>
+                    {item.additional_metadata && (
+                      <div className="text-[11px] font-mono text-text-muted bg-bg-input p-2 rounded-xl">
+                        {item.additional_metadata}
+                      </div>
+                    )}
+
+                    {/* Code Preview */}
+                    <div className="rounded-xl overflow-hidden border border-border-subtle bg-bg-input">
+                      <div className="px-3 py-1.5 border-b border-border-subtle/60 text-[10px] font-mono text-text-muted flex items-center justify-between">
+                        <span>Code Implementation</span>
+                        <span className="uppercase">{item.programming_language}</span>
+                      </div>
+                      <pre className="p-3 text-[11px] font-mono text-text-primary overflow-x-auto max-h-48 custom-scrollbar">
+                        <code>{item.function_body}</code>
+                      </pre>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end space-x-2 pt-2 border-t border-border-subtle/50">
+                      <button
+                        onClick={() => handleRejectStaged(item.id)}
+                        disabled={actionInProgress === item.id}
+                        className="px-3.5 py-1.5 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => handleApproveStaged(item.id)}
+                        disabled={actionInProgress === item.id}
+                        className="flex items-center space-x-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                      >
+                        {actionInProgress === item.id ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Indexing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Approve & Ingest to KB</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'upload' ? (
           <div className="max-w-2xl mx-auto">
             <FileUpload
               onUploadComplete={() => {

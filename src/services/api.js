@@ -92,6 +92,31 @@ export const api = {
     return res.data;
   },
 
+  async uploadCodeOrDoc(file, notes = '') {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (notes) formData.append('notes', notes);
+    const res = await axios.post(`${API_BASE}/knowledge-base/upload-code-or-doc`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+  },
+
+  async getStagingQueue(status = 'pending_review') {
+    const res = await apiClient.get('/knowledge-base/staging-queue', { params: { status } });
+    return res.data;
+  },
+
+  async approveStagedFunction(id, data = {}) {
+    const res = await apiClient.post(`/knowledge-base/staging-queue/${id}/approve`, data);
+    return res.data;
+  },
+
+  async rejectStagedFunction(id, data = {}) {
+    const res = await apiClient.post(`/knowledge-base/staging-queue/${id}/reject`, data);
+    return res.data;
+  },
+
   async getStats() {
     const res = await apiClient.get('/knowledge-base/stats');
     return res.data;
