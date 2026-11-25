@@ -15,11 +15,13 @@ import {
   AlertTriangle,
   Check,
   X,
-  Code2
+  Code2,
+  FolderArchive
 } from 'lucide-react';
 import { api, formatApiError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import FileUpload from '../components/FileUpload/FileUpload';
+import CodebaseUpload from '../components/CodebaseUpload/CodebaseUpload';
 import FunctionCard from '../components/FunctionCard/FunctionCard';
 
 export default function KnowledgeBase() {
@@ -255,6 +257,18 @@ export default function KnowledgeBase() {
           <Sparkles className="w-4 h-4 text-blue-500" />
           <span>AI Self-Learned Knowledge</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('codebase')}
+          className={`pb-2.5 flex items-center space-x-1.5 border-b-2 transition-colors ${
+            activeTab === 'codebase'
+              ? 'border-brand-primary text-brand-primary'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          <FolderArchive className="w-4 h-4" />
+          <span>Codebase Upload</span>
+        </button>
       </div>
 
       {/* Tab Body */}
@@ -401,6 +415,15 @@ export default function KnowledgeBase() {
             <FileUpload
               onUploadComplete={() => {
                 fetchFunctions();
+              }}
+            />
+          </div>
+        ) : activeTab === 'codebase' ? (
+          <div className="max-w-2xl mx-auto">
+            <CodebaseUpload
+              onComplete={() => {
+                // After codebase ingestion completes, refresh the staging queue badge
+                fetchStagingQueue();
               }}
             />
           </div>

@@ -213,6 +213,27 @@ export const api = {
     return res.data;
   },
 
+  // ── Codebase Ingestion ───────────────────────────────────────────
+  async uploadCodebase(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await apiClient.post('/codebase/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // Allow extra time for large archives
+    });
+    return res.data;
+  },
+
+  async getCodebaseJobStatus(jobId) {
+    const res = await apiClient.get(`/codebase/status/${jobId}`);
+    return res.data;
+  },
+
+  async getCodebaseJobs(limit = 20) {
+    const res = await apiClient.get('/codebase/jobs', { params: { limit } });
+    return res.data;
+  },
+
   // ── Conversations ────────────────────────────────────────────────
   async getConversations() {
     const res = await apiClient.get('/conversations');
