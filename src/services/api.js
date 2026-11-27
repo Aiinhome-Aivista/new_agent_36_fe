@@ -229,8 +229,40 @@ export const api = {
     return res.data;
   },
 
+  async pickLocalFolder() {
+    const res = await apiClient.post('/codebase/pick-folder');
+    return res.data;
+  },
+
+  async scanLocalCodebase(folderPath, userInstructions = '') {
+    const res = await apiClient.post('/codebase/scan-local', {
+      folder_path: folderPath,
+      user_instructions: userInstructions,
+    });
+    return res.data;
+  },
+
+  async uploadFolderFiles(files, userInstructions = '', folderName = 'Local_Folder') {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+    formData.append('user_instructions', userInstructions);
+    formData.append('folder_name', folderName);
+    const res = await apiClient.post('/codebase/upload-folder', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+    return res.data;
+  },
+
   async getCodebaseJobs(limit = 20) {
     const res = await apiClient.get('/codebase/jobs', { params: { limit } });
+    return res.data;
+  },
+
+  async getCodebaseJobLog(jobId, type = 'summary') {
+    const res = await apiClient.get(`/codebase/logs/${jobId}`, { params: { type } });
     return res.data;
   },
 

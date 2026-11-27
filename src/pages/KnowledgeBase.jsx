@@ -323,6 +323,15 @@ export default function KnowledgeBase() {
                         <span className="text-[11px] text-text-muted font-medium">
                           Source: {item.knowledge_source}
                         </span>
+                        {item.risk_level && item.risk_level !== 'low' && (
+                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase ${
+                            item.risk_level === 'critical'
+                              ? 'bg-red-500/20 text-red-500 border border-red-500/40'
+                              : 'bg-amber-500/20 text-amber-500 border border-amber-500/40'
+                          }`}>
+                            ⚠️ {item.risk_level} Risk
+                          </span>
+                        )}
                       </div>
 
                       {/* Conflict Badge */}
@@ -354,6 +363,25 @@ export default function KnowledgeBase() {
                         <p className="text-text-secondary">
                           Approving this function will increment its version to <strong>v{item.version}</strong> and link to the previous implementation as an audit trail.
                         </p>
+                      </div>
+                    )}
+
+                    {/* Elaborated Risk & Negative Impact Quarantine Alert */}
+                    {item.risk_explanation && (
+                      <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 ${
+                        item.risk_level === 'critical'
+                          ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300'
+                          : item.risk_level === 'high'
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                          : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-700 dark:text-yellow-300'
+                      }`}>
+                        <div className="flex items-center space-x-2 font-bold text-xs uppercase tracking-wide">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                          <span>Negative Impact Risk Assessment ({item.risk_level || 'Quarantine'})</span>
+                        </div>
+                        <div className="text-[11px] leading-relaxed whitespace-pre-line font-medium opacity-90 pl-6">
+                          {item.risk_explanation}
+                        </div>
                       </div>
                     )}
 
